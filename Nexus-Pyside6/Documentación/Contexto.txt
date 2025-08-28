@@ -1,0 +1,49 @@
+Contexto General del Sistema
+
+El sistema de e-commerce "SmartShop" es una plataforma web para la venta de productos de tecnología. El proyecto tiene un alcance definido, y todas las funcionalidades y reglas de negocio están diseñadas para ofrecer una experiencia de compra segura y eficiente.
+
+Core Features (Características principales):
+
+Gestión de cuenta de usuario: Los usuarios pueden registrarse, iniciar sesión, recuperar su contraseña y gestionar su perfil.
+
+Regla de Negocio: La contraseña debe tener un mínimo de 8 caracteres.
+
+Regla de Negocio: Se permite un máximo de 3 intentos de inicio de sesión fallidos, tras lo cual la cuenta se bloquea por 15 minutos.
+
+Búsqueda y filtrado de productos: Los usuarios pueden buscar productos por nombre, marca o categoría, y aplicar filtros.
+
+Regla de Negocio: La búsqueda es insensible a mayúsculas y minúsculas y los filtros son acumulativos.
+
+Carrito de compras: Un carrito dinámico que gestiona productos y cantidades.
+
+Regla de Negocio: El subtotal y el total se recalculan en tiempo real con cada cambio.
+
+Regla de Negocio: La cantidad de un producto no puede exceder el stock disponible.
+
+Proceso de pago: Un flujo seguro que procesa transacciones con tarjeta.
+
+Regla de Negocio: El sistema valida la tarjeta con el algoritmo de Luhn antes de enviarla al procesador de pagos.
+
+Regla de Negocio: Solo los pagos exitosos actualizan el inventario.
+
+Historial y seguimiento de pedidos: Los usuarios pueden ver el estado de sus pedidos anteriores.
+
+Regla de Negocio: El historial se muestra en orden cronológico descendente.
+
+Additional Features (Características adicionales):
+
+Lista de deseos: Los usuarios pueden guardar productos para futuras compras.
+
+Reseñas y calificaciones: Los usuarios que han comprado un producto pueden dejar reseñas.
+
+Regla de Negocio: Solo se permite una reseña por producto, por usuario.
+
+Regla de Negocio: La reseña y la calificación solo se activan para usuarios que han completado la compra del producto.
+
+Exclusions (Exclusiones):
+
+Sistema de pagos recurrentes: Los pagos para suscripciones no forman parte de este alcance.
+
+Sistema de puntos o recompensas: No se implementarán programas de fidelización.
+
+Aplicación móvil nativa: El alcance se limita a la interfaz web.

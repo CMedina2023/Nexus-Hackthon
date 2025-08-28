@@ -1,0 +1,17 @@
+Flujo del Proceso
+
+El usuario accede al sitio e inicia sesión o se registra.
+
+Navega por el catálogo y usa la búsqueda o los filtros para encontrar productos.
+
+Agrega productos al carrito de compras y/o a su lista de deseos.
+
+Una vez en el carrito, el usuario verifica y ajusta los productos antes de ir al checkout.
+
+Completa los detalles de envío y pago desde su perfil.
+
+El sistema procesa el pago y actualiza el inventario en tiempo real.
+
+Se genera un número de pedido y se envía una confirmación por correo electrónico.
+
+El usuario puede ver el estado de su pedido en su historial de compras, el cual se actualiza a medida que el pedido avanza.
