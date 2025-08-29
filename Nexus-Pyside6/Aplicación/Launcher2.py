@@ -24,16 +24,9 @@ class AnimatedCard(QFrame):
         self.is_primary = is_primary
 
         # Configuración del frame - tamaño más grande para mejor descripción
-        self.setFixedSize(320, 260)  # Incrementamos altura para más espacio
+        self.setFixedSize(320, 260) 
 
         self.setObjectName("animated_card")
-
-        # ELIMINAMOS el efecto de sombra completamente
-        # shadow = QGraphicsDropShadowEffect()
-        # shadow.setBlurRadius(20)
-        # shadow.setColor(QColor(0, 0, 0, 100))
-        # shadow.setOffset(0, 5)
-        # self.setGraphicsEffect(shadow)
 
         # Layout principal con más espacio
         main_layout = QVBoxLayout(self)
@@ -557,3 +550,4 @@ if __name__ == "__main__":
     win = MainWindow()
     win.show()
     sys.exit(app.exec())
+
