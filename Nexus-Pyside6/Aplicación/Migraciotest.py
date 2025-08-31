@@ -11,9 +11,9 @@ import google.api_core.exceptions as api_exceptions
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QTextEdit,
     QPushButton, QFileDialog, QCheckBox, QProgressBar, QMessageBox,
-    QHBoxLayout, QFrame, QPlainTextEdit, QStackedWidget
+    QHBoxLayout, QFrame, QPlainTextEdit, QStackedWidget, QGroupBox
 )
-from PySide6.QtCore import Signal, QObject, Qt, QThread  # QThread es necesario para la clase
+from PySide6.QtCore import Signal, QObject, Qt, QThread
 from PySide6.QtGui import QIcon
 
 
@@ -35,18 +35,12 @@ signals = WorkerSignals()
 # ----------------------------
 # Utilidades de lectura
 # ----------------------------
-def listar_archivos(carpeta, incluir_subcarpetas=False):
+def listar_archivos(carpeta):
     exts = (".docx", ".pdf")
     archivos = []
-    if incluir_subcarpetas:
-        for root, _, files in os.walk(carpeta):
-            for f in files:
-                if f.lower().endswith(exts):
-                    archivos.append(os.path.join(root, f))
-    else:
-        for f in os.listdir(carpeta):
-            if f.lower().endswith(exts):
-                archivos.append(os.path.join(carpeta, f))
+    for f in os.listdir(carpeta):
+        if f.lower().endswith(exts):
+            archivos.append(os.path.join(carpeta, f))
     return archivos
 
 
@@ -80,7 +74,7 @@ def leer_requerimiento(path):
 
 
 # ----------------------------
-# IA (Gemini)
+# IA (Gemini) - Mejorado
 # ----------------------------
 def _extraer_json_array(texto):
     s = (texto or "").strip()
@@ -96,52 +90,169 @@ def _extraer_json_array(texto):
         return []
 
 
-def generar_casos_gemini(api_key, requerimiento, contexto_general, flujo_proceso):
+def generar_casos_gemini(api_key, requerimiento, contexto_general, flujo_proceso, tipos_prueba):
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-1.5-flash")
-        prompt = (
-            "Eres un experto en QA. Devuelve SOLO un array JSON de objetos con claves:\n"
-            ' - "Nombre"\n - "Descripcion"\n - "Pasos" (array)\n'
-            ' - "Resultado esperado"\n - "Prioridad"\n\n'
-            f"Contexto: {contexto_general}\nFlujo: {flujo_proceso}\n\nRequerimiento:\n{requerimiento}"
-        )
-        response = model.generate_content(prompt)
+
+        # Prompt mejorado sin limitaciones artificiales
+        prompt_base = """Eres un experto en Testing y Quality Assurance con experiencia en análisis de requerimientos y diseño de casos de prueba.
+
+TAREA: Analizar el siguiente requerimiento y generar casos de prueba completos para lograr la MÁXIMA COBERTURA posible.
+
+FORMATO DE RESPUESTA: Devuelve ÚNICAMENTE un array JSON válido con objetos que contengan exactamente estas claves:
+- "Tipo": (string) "Funcional" o "No Funcional"
+- "Categoria": (string) Para funcionales: "Flujo Principal", "Flujos Alternativos", "Casos Límite", "Casos de Error". Para no funcionales: "Rendimiento", "Seguridad", "Usabilidad", "Compatibilidad", "Confiabilidad"
+- "Nombre": (string) Nombre descriptivo y específico del caso de prueba
+- "Descripcion": (string) Descripción detallada de qué se está probando y por qué es importante
+- "Pasos": (array) Lista de pasos específicos y detallados para ejecutar la prueba
+- "Resultado_esperado": (string) Resultado específico y medible que se espera observar
+- "Prioridad": (string) "Alta", "Media" o "Baja"
+- "Criterios_aceptacion": (string) Criterios específicos para considerar la prueba exitosa"""
+
+        # Construir prompt basado en tipos seleccionados
+        incluir_funcionales = "funcional" in tipos_prueba
+        incluir_no_funcionales = "no_funcional" in tipos_prueba
+
+        if incluir_funcionales and incluir_no_funcionales:
+            prompt_especifico = """
+TIPOS DE PRUEBAS A GENERAR (COBERTURA COMPLETA SIN LÍMITES):
+
+PASO 1 - ANÁLISIS DEL REQUERIMIENTO:
+Analiza el requerimiento para entender qué aspectos necesitan cobertura:
+
+ASPECTOS FUNCIONALES a cubrir si están presentes:
+- Flujos de trabajo y casos de uso
+- Validaciones y transformaciones de datos
+- Reglas de negocio y lógica
+- Interacciones y integraciones
+- Manejo de errores y excepciones
+
+ASPECTOS NO FUNCIONALES a cubrir si están presentes:
+- Rendimiento (tiempo, carga, throughput, escalabilidad)
+- Seguridad (autenticación, autorización, protección de datos)
+- Usabilidad (experiencia de usuario, accesibilidad)
+- Compatibilidad (plataformas, navegadores, dispositivos)
+- Confiabilidad (disponibilidad, recuperación, integridad)
+
+PASO 2 - GENERACIÓN DE CASOS:
+Para CADA aspecto identificado, genera TODOS los casos necesarios para cobertura completa:
+
+PRUEBAS FUNCIONALES (genera si hay aspectos funcionales):
+- Todos los flujos principales y alternativos
+- Todas las validaciones de entrada requeridas
+- Todos los casos límite y condiciones borde
+- Todos los escenarios de error posibles
+- Todas las integraciones con otros componentes
+
+PRUEBAS NO FUNCIONALES (genera si hay aspectos no funcionales):
+- Todos los escenarios de carga y rendimiento relevantes
+- Todos los vectores de seguridad aplicables
+- Todos los contextos de usabilidad necesarios
+- Todas las combinaciones de compatibilidad críticas
+- Todos los escenarios de fallo y recuperación
+
+PRINCIPIO FUNDAMENTAL:
+- La COBERTURA COMPLETA determina la cantidad de casos, no límites artificiales
+- Genera casos hasta cubrir exhaustivamente cada aspecto del requerimiento
+- Si un requerimiento es 100% de seguridad, genera 100% casos de seguridad
+- Si un requerimiento es 100% funcional, genera 100% casos funcionales
+- Si es mixto, cubre proporcionalmente según la complejidad de cada aspecto"""
+        elif incluir_funcionales:
+            prompt_especifico = """
+TIPOS DE PRUEBAS A GENERAR (COBERTURA FUNCIONAL COMPLETA):
+
+PRUEBAS FUNCIONALES:
+   - Flujo principal y todos los casos exitosos
+   - Flujos alternativos y rutas de excepción
+   - Validación exhaustiva de campos y datos
+   - Casos límite, condiciones borde y extremas
+   - Manejo completo de errores y excepciones
+   - Estados del sistema y transiciones
+   - Integración con componentes relacionados
+
+PRINCIPIO DE COBERTURA MÁXIMA:
+- Genera TODOS los casos funcionales necesarios para cobertura completa
+- No te limites por cantidad, prioriza la cobertura exhaustiva
+- Incluye casos para cada condición, rama y escenario posible"""
+        elif incluir_no_funcionales:
+            prompt_especifico = """
+TIPOS DE PRUEBAS A GENERAR (COBERTURA NO FUNCIONAL COMPLETA):
+
+PRUEBAS NO FUNCIONALES:
+   - RENDIMIENTO: Carga normal, picos, estrés, volumen, tiempo de respuesta
+   - SEGURIDAD: Autenticación, autorización, validación, ataques, cifrado
+   - USABILIDAD: Navegación, accesibilidad, experiencia, interfaces
+   - COMPATIBILIDAD: Múltiples entornos, navegadores, dispositivos, versiones
+   - CONFIABILIDAD: Disponibilidad, recuperación, integridad, tolerancia a fallos
+
+PRINCIPIO DE COBERTURA MÁXIMA:
+- Genera TODOS los casos no funcionales relevantes para el requerimiento
+- Especifica métricas precisas y medibles
+- Considera todos los contextos de uso y condiciones operativas"""
+        else:
+            return []  # Si no se selecciona ningún tipo
+
+        prompt_contexto = f"""
+CONTEXTO DEL PROYECTO:
+{contexto_general}
+
+FLUJO DEL PROCESO:
+{flujo_proceso}
+
+REQUERIMIENTO A ANALIZAR:
+{requerimiento}
+
+INSTRUCCIONES FINALES:
+- Responde SOLO con el array JSON, sin texto adicional
+- Cada caso debe ser único y aportar valor específico
+- Los pasos deben ser claros y ejecutables por cualquier tester
+- Los resultados esperados deben ser verificables y específicos
+"""
+
+        prompt_completo = prompt_base + prompt_especifico + prompt_contexto
+
+        response = model.generate_content(prompt_completo)
         texto = getattr(response, "text", "") or ""
         return _extraer_json_array(texto)
-    except Exception:
+    except Exception as e:
+        print(f"Error en generar_casos_gemini: {e}")
         return []
 
 
 # ----------------------------
-# Guardado CSV
+# Guardado CSV - Mejorado
 # ----------------------------
 def guardar_csv(casos, output_path):
     try:
         with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow([
-                "Nombre de caso de prueba", "Descripcion", "Pasos",
-                "Resultado esperado", "Prioridad"
+                "Tipo", "Categoria", "Nombre de caso de prueba", "Descripcion", "Pasos",
+                "Resultado esperado", "Criterios de aceptacion", "Prioridad"
             ])
             for c in casos:
                 writer.writerow([
+                    c.get("Tipo", "Funcional"),
+                    c.get("Categoria", ""),
                     c.get("Nombre", ""),
                     c.get("Descripcion", ""),
                     " | ".join(c.get("Pasos", []) or []),
-                    c.get("Resultado esperado", ""),
+                    c.get("Resultado_esperado", ""),
+                    c.get("Criterios_aceptacion", ""),
                     c.get("Prioridad", ""),
                 ])
         return True
-    except Exception:
+    except Exception as e:
+        print(f"Error guardando CSV: {e}")
         return False
 
 
 # ----------------------------
-# Proceso en hilo
+# Proceso en hilo - Mejorado
 # ----------------------------
-def procesar_en_hilo(input_dir, output_dir, api_key, contexto, flujo, incluir_sub):
-    archivos = listar_archivos(input_dir, incluir_subcarpetas=incluir_sub)
+def procesar_en_hilo(input_dir, output_dir, api_key, contexto, flujo, tipos_prueba):
+    archivos = listar_archivos(input_dir)
     if not archivos:
         signals.info.emit("No se encontraron .docx/.pdf en la carpeta seleccionada.")
         return
@@ -152,45 +263,75 @@ def procesar_en_hilo(input_dir, output_dir, api_key, contexto, flujo, incluir_su
     signals.enable_run.emit(False)
 
     resumen = []
+    casos_funcionales_total = 0
+    casos_no_funcionales_total = 0
 
     for i, path in enumerate(archivos, start=1):
         nombre = os.path.basename(path)
         texto = leer_requerimiento(path)
         if not texto:
-            resumen.append(f"{nombre} → 0 casos")
+            resumen.append(f"{nombre} → 0 casos (sin contenido)")
             signals.progress.emit(i)
             continue
 
-        casos = generar_casos_gemini(api_key, texto, contexto, flujo) or []
+        casos = generar_casos_gemini(api_key, texto, contexto, flujo, tipos_prueba) or []
+
+        # Contar tipos de casos
+        funcionales = len([c for c in casos if c.get("Tipo", "").lower() == "funcional"])
+        no_funcionales = len([c for c in casos if c.get("Tipo", "").lower() == "no funcional"])
+
+        casos_funcionales_total += funcionales
+        casos_no_funcionales_total += no_funcionales
+
         conteo = len(casos)
         nombre_base = os.path.splitext(nombre)[0]
         out_path = os.path.join(output_dir, f"{nombre_base}_matriz.csv")
+
         if conteo > 0:
             guardar_csv(casos, out_path)
-        resumen.append(f"{nombre} → {conteo} casos")
+
+        # Mostrar detalle según tipos seleccionados
+        if "funcional" in tipos_prueba and "no_funcional" in tipos_prueba:
+            resumen.append(f"{nombre} → {conteo} casos ({funcionales}F + {no_funcionales}NF)")
+        elif "funcional" in tipos_prueba:
+            resumen.append(f"{nombre} → {funcionales} casos funcionales")
+        elif "no_funcional" in tipos_prueba:
+            resumen.append(f"{nombre} → {no_funcionales} casos no funcionales")
 
         signals.progress.emit(i)
 
+    # Resumen final
+    resumen.append("")
+    resumen.append("=== RESUMEN TOTAL ===")
+    resumen.append(f"Archivos procesados: {len(archivos)}")
+
+    if "funcional" in tipos_prueba:
+        resumen.append(f"Casos funcionales: {casos_funcionales_total}")
+    if "no_funcional" in tipos_prueba:
+        resumen.append(f"Casos no funcionales: {casos_no_funcionales_total}")
+
+    resumen.append(f"Total de casos: {casos_funcionales_total + casos_no_funcionales_total}")
+
     signals.summary.emit(resumen)
     signals.enable_run.emit(True)
-    signals.info.emit("Proceso completado.")
+    signals.info.emit("Proceso completado exitosamente.")
 
 
 # ----------------------------
-# UI principal como QWidget
+# UI principal como QWidget - Mejorado
 # ----------------------------
 class GeneradorMatrices(QWidget):
-    # El constructor ahora acepta un stacked_widget
     def __init__(self, stacked_widget):
         super().__init__()
         self.setWindowTitle("Generador de Matrices de Pruebas (IA)")
-        self.resize(900, 750)
-        self.stacked_widget = stacked_widget  # Guarda la referencia al stacked widget
+        self.resize(900, 850)
+        self.stacked_widget = stacked_widget
 
         # --- Estilos Locales ---
         self.setStyleSheet("""
             QWidget {
-                background-color: #1E1E2F;
+                background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #0F0F23, stop: 1 #1A1A2E);
                 color: #F5F5F5;
                 font-family: 'Segoe UI';
                 font-size: 14px;
@@ -199,6 +340,19 @@ class GeneradorMatrices(QWidget):
                 background-color: #2A2A40;
                 border-radius: 12px;
                 border: 1px solid #3C3C5C;
+            }
+            QGroupBox {
+                background-color: #2A2A40;
+                border-radius: 12px;
+                border: 1px solid #3C3C5C;
+                font-weight: bold;
+                color: #B0C4DE;
+                padding: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
             }
             QLabel {
                 font-size: 16px;
@@ -232,6 +386,33 @@ class GeneradorMatrices(QWidget):
             QProgressBar::chunk {
                 background-color: #4CAF50;
                 border-radius: 5px;
+            }
+            QCheckBox {
+                color: #B0C4DE;
+                font-size: 13px;
+                padding: 8px;
+                background-color: #3A3A50;
+                border: 1px solid #5C5C7A;
+                border-radius: 8px;
+                margin: 2px;
+            }
+            QCheckBox:hover {
+                background-color: #4A4A60;
+                border-color: #6C6C8A;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: #3A3A50;
+                border: 1px solid #5C5C7A;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #4CAF50;
+                border: 1px solid #4CAF50;
+                border-radius: 3px;
             }
         """)
 
@@ -276,9 +457,7 @@ class GeneradorMatrices(QWidget):
         # Carpeta entrada
         row_in = QHBoxLayout()
         self.entry_input = QLineEdit()
-        self.entry_input.setPlaceholderText(
-            "Da click en el botón 'seleccionar' para colocar la ruta\n"
-        )
+        self.entry_input.setPlaceholderText("Da click en el botón 'seleccionar' para colocar la ruta")
         btn_in = QPushButton("Seleccionar")
         btn_in.clicked.connect(self.seleccionar_in)
         row_in.addWidget(QLabel("Carpeta de Requerimientos:"))
@@ -289,9 +468,7 @@ class GeneradorMatrices(QWidget):
         # Carpeta salida
         row_out = QHBoxLayout()
         self.entry_output = QLineEdit()
-        self.entry_output.setPlaceholderText(
-            "Da click en el botón 'seleccionar' para colocar la ruta\n"
-        )
+        self.entry_output.setPlaceholderText("Da click en el botón 'seleccionar' para colocar la ruta")
         btn_out = QPushButton("Seleccionar")
         btn_out.clicked.connect(self.seleccionar_out)
         row_out.addWidget(QLabel("Carpeta de Salida:"))
@@ -302,9 +479,7 @@ class GeneradorMatrices(QWidget):
         # API Key
         row_api = QHBoxLayout()
         self.entry_api = QLineEdit()
-        self.entry_api.setPlaceholderText(
-            "Ejemplo: AIzaSyD3x-xxxx-xxxx-xxxx-xxxxx\n"
-        )
+        self.entry_api.setPlaceholderText("Ejemplo: AIzaSyD3x-xxxx-xxxx-xxxx-xxxxx")
         self.entry_api.setEchoMode(QLineEdit.Password)
         row_api.addWidget(QLabel("API Key (Gemini):"))
         row_api.addWidget(self.entry_api)
@@ -327,24 +502,38 @@ class GeneradorMatrices(QWidget):
             "Ejemplo: Este requerimiento pertenece al módulo de pagos.\n"
             "El usuario debe poder registrar una transacción y verificarla en el historial."
         )
+        self.txt_contexto.setMaximumHeight(80)
         context_flujo_layout.addWidget(self.txt_contexto)
 
         context_flujo_layout.addWidget(QLabel("Flujo del Proceso:"))
         self.txt_flujo = QTextEdit()
         self.txt_flujo.setPlaceholderText(
             "Ejemplo:\n"
-            "1. El usuario ingresa al sistema con sus credenciales.\n"
-            "2. Accede al módulo de facturación..\n"
-            "3. Genera una nueva factura.\n"
+            "1. El usuario ingresa al sistema con sus credenciales. 2. Accede al módulo de facturación. 3. Genera una nueva factura."
         )
+        self.txt_flujo.setMaximumHeight(80)
         context_flujo_layout.addWidget(self.txt_flujo)
 
         layout.addWidget(context_flujo_card)
 
+        # ---- Opciones de pruebas (MEJORADO) ----
+        opciones_group = QGroupBox("🧪 Tipos de Pruebas")
+        opciones_layout = QVBoxLayout(opciones_group)
+
+        # Checkbox para pruebas funcionales
+        self.chk_funcionales = QCheckBox("Pruebas Funcionales: Flujo principal, casos alternativos, validaciones, manejo de errore")
+        self.chk_funcionales.setChecked(True)
+        opciones_layout.addWidget(self.chk_funcionales)
+
+        # Checkbox para pruebas no funcionales
+        self.chk_no_funcionales = QCheckBox("Pruebas No Funcionales: Rendimiento, seguridad, usabilidad, compatibilidad, confiabilidad")
+        self.chk_no_funcionales.setChecked(True)
+        opciones_layout.addWidget(self.chk_no_funcionales)
+
+        layout.addWidget(opciones_group)
+
         # ---- Acciones ----
         action_layout = QHBoxLayout()
-        self.chk_subcarpetas = QCheckBox("Incluir subcarpetas")
-        action_layout.addWidget(self.chk_subcarpetas)
 
         self.btn_run = QPushButton("⚡ Generar matrices")
         self.btn_run.clicked.connect(self.ejecutar)
@@ -392,15 +581,29 @@ class GeneradorMatrices(QWidget):
         api_key = self.entry_api.text().strip()
         contexto = self.txt_contexto.toPlainText().strip()
         flujo = self.txt_flujo.toPlainText().strip()
-        incluir_sub = self.chk_subcarpetas.isChecked()
+
+        # Obtener tipos de prueba seleccionados
+        tipos_prueba = []
+        if self.chk_funcionales.isChecked():
+            tipos_prueba.append("funcional")
+        if self.chk_no_funcionales.isChecked():
+            tipos_prueba.append("no_funcional")
 
         if not input_dir or not output_dir or not api_key:
-            QMessageBox.critical(self, "Error", "Completa todos los campos.")
+            QMessageBox.critical(self, "Error", "Completa todos los campos obligatorios.")
             return
+
+        if not tipos_prueba:
+            QMessageBox.critical(self, "Error", "Selecciona al menos un tipo de prueba.")
+            return
+
+        # Limpiar resumen anterior
+        self.resumen_temp.clear()
+        self.progress.setValue(0)
 
         threading.Thread(
             target=procesar_en_hilo,
-            args=(input_dir, output_dir, api_key, contexto, flujo, incluir_sub),
+            args=(input_dir, output_dir, api_key, contexto, flujo, tipos_prueba),
             daemon=True
         ).start()
 
