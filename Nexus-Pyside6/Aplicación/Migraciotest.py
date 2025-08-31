@@ -101,14 +101,22 @@ def generar_casos_gemini(api_key, requerimiento, contexto_general, flujo_proceso
 TAREA: Analizar el siguiente requerimiento y generar casos de prueba completos para lograr la MÁXIMA COBERTURA posible.
 
 FORMATO DE RESPUESTA: Devuelve ÚNICAMENTE un array JSON válido con objetos que contengan exactamente estas claves:
-- "Tipo": (string) "Funcional" o "No Funcional"
-- "Categoria": (string) Para funcionales: "Flujo Principal", "Flujos Alternativos", "Casos Límite", "Casos de Error". Para no funcionales: "Rendimiento", "Seguridad", "Usabilidad", "Compatibilidad", "Confiabilidad"
-- "Nombre": (string) Nombre descriptivo y específico del caso de prueba
-- "Descripcion": (string) Descripción detallada de qué se está probando y por qué es importante
-- "Pasos": (array) Lista de pasos específicos y detallados para ejecutar la prueba
-- "Resultado_esperado": (string) Resultado específico y medible que se espera observar
-- "Prioridad": (string) "Alta", "Media" o "Baja"
-- "Criterios_aceptacion": (string) Criterios específicos para considerar la prueba exitosa"""
+- `id_caso_prueba`: un identificador único (ej. "TC001").
+- `titulo_caso_prueba`: una descripción concisa.
+- `Descripcion`: una descripción detallada.
+- `Precondiciones`: los requisitos para ejecutar el caso de prueba.
+- "Tipo_de_prueba": (string) "Funcional" o "No Funcional"
+- "Nivel_de_prueba": (string) "UAT"
+- "Tipo_de_ejecucion": (string) "Manual"
+- `Pasos`: un array de strings que describen los pasos para ejecutar la prueba.
+- `Resultado_esperado`: un array de strings que describe lo que se espera que suceda al finalizar los pasos.
+- `Categoria`: (string) Para funcionales: "Flujo Principal", "Flujos Alternativos", "Casos Límite", "Casos de Error". Para no funcionales: "Rendimiento", "Seguridad", "Usabilidad", "Compatibilidad", "Confiabilidad"
+- "Ambiente": (string) "QA"
+- "Ciclo": (string) "Ciclo 1"
+- "issuetype": (string) "Test Case"
+- `Prioridad`: la importancia del caso de prueba (ej. 'Alta', 'Media', 'Baja').
+
+El JSON debe ser un array que contenga todos los casos de prueba generados. No incluyas ningún texto o explicación adicional fuera del objeto JSON."""
 
         # Construir prompt basado en tipos seleccionados
         incluir_funcionales = "funcional" in tipos_prueba
@@ -221,27 +229,52 @@ INSTRUCCIONES FINALES:
 
 
 # ----------------------------
-# Guardado CSV - Mejorado
+# Guardado CSV - Mejorado para el nuevo formato
 # ----------------------------
 def guardar_csv(casos, output_path):
     try:
+        # Define las columnas en el orden exacto del prompt
+        fieldnames = [
+            "id_caso_prueba",
+            "titulo_caso_prueba",
+            "Descripcion",
+            "Precondiciones",
+            "Tipo_de_prueba",
+            "Nivel_de_prueba",
+            "Tipo_de_ejecucion",
+            "Pasos",
+            "Resultado_esperado",
+            "Categoria",
+            "Ambiente",
+            "Ciclo",
+            "issuetype",
+            "Prioridad"
+        ]
+
         with open(output_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                "Tipo", "Categoria", "Nombre de caso de prueba", "Descripcion", "Pasos",
-                "Resultado esperado", "Criterios de aceptacion", "Prioridad"
-            ])
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
             for c in casos:
-                writer.writerow([
-                    c.get("Tipo", "Funcional"),
-                    c.get("Categoria", ""),
-                    c.get("Nombre", ""),
-                    c.get("Descripcion", ""),
-                    " | ".join(c.get("Pasos", []) or []),
-                    c.get("Resultado_esperado", ""),
-                    c.get("Criterios_aceptacion", ""),
-                    c.get("Prioridad", ""),
-                ])
+                # Normaliza las claves a las del prompt si difieren
+                row = {
+                    "id_caso_prueba": c.get("id_caso_prueba", ""),
+                    "titulo_caso_prueba": c.get("titulo_caso_prueba", ""),
+                    "Descripcion": c.get("Descripcion", ""),
+                    "Precondiciones": c.get("Precondiciones", ""),
+                    "Tipo_de_prueba": c.get("Tipo_de_prueba", ""),
+                    "Nivel_de_prueba": c.get("Nivel_de_prueba", ""),
+                    "Tipo_de_ejecucion": c.get("Tipo_de_ejecucion", ""),
+                    # Convierte arrays de pasos y resultados a strings con " | "
+                    "Pasos": " | ".join(c.get("Pasos", [])),
+                    "Resultado_esperado": " | ".join(c.get("Resultado_esperado", [])),
+                    "Categoria": c.get("Categoria", ""),
+                    "Ambiente": c.get("Ambiente", ""),
+                    "Ciclo": c.get("Ciclo", ""),
+                    "issuetype": c.get("issuetype", ""),
+                    "Prioridad": c.get("Prioridad", ""),
+                }
+                writer.writerow(row)
         return True
     except Exception as e:
         print(f"Error guardando CSV: {e}")
@@ -277,8 +310,8 @@ def procesar_en_hilo(input_dir, output_dir, api_key, contexto, flujo, tipos_prue
         casos = generar_casos_gemini(api_key, texto, contexto, flujo, tipos_prueba) or []
 
         # Contar tipos de casos
-        funcionales = len([c for c in casos if c.get("Tipo", "").lower() == "funcional"])
-        no_funcionales = len([c for c in casos if c.get("Tipo", "").lower() == "no funcional"])
+        funcionales = len([c for c in casos if c.get("Tipo_de_prueba", "").lower() == "funcional"])
+        no_funcionales = len([c for c in casos if c.get("Tipo_de_prueba", "").lower() == "no funcional"])
 
         casos_funcionales_total += funcionales
         casos_no_funcionales_total += no_funcionales
@@ -521,12 +554,14 @@ class GeneradorMatrices(QWidget):
         opciones_layout = QVBoxLayout(opciones_group)
 
         # Checkbox para pruebas funcionales
-        self.chk_funcionales = QCheckBox("Pruebas Funcionales: Flujo principal, casos alternativos, validaciones, manejo de errore")
+        self.chk_funcionales = QCheckBox(
+            "Pruebas Funcionales: Flujo principal, casos alternativos, validaciones, manejo de errore")
         self.chk_funcionales.setChecked(True)
         opciones_layout.addWidget(self.chk_funcionales)
 
         # Checkbox para pruebas no funcionales
-        self.chk_no_funcionales = QCheckBox("Pruebas No Funcionales: Rendimiento, seguridad, usabilidad, compatibilidad, confiabilidad")
+        self.chk_no_funcionales = QCheckBox(
+            "Pruebas No Funcionales: Rendimiento, seguridad, usabilidad, compatibilidad, confiabilidad")
         self.chk_no_funcionales.setChecked(True)
         opciones_layout.addWidget(self.chk_no_funcionales)
 
