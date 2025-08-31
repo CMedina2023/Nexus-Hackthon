@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import httpx
+import re
 from pptx import Presentation
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -283,6 +284,7 @@ class JiraAssistantApp(QWidget):
                 return True
         return super().eventFilter(obj, event)
 
+
     def send_query(self):
         pregunta = self.input_text.toPlainText().strip()
         if not pregunta:
@@ -301,8 +303,37 @@ class JiraAssistantApp(QWidget):
         worker.signals.error.connect(self.handle_error)
         self.threadpool.start(worker)
 
+    def format_response(self, content):
+        """
+        Formatea la respuesta del modelo para mejorar su legibilidad,
+        usando las mismas reglas que el script de chat.html.
+        """
+        # 1. Resalta texto entre dobles asteriscos con <strong>
+        formatted_content = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', content)
+
+        # 2. Añade saltos de línea después de un punto seguido de una letra mayúscula
+        formatted_content = re.sub(r'\. ([A-ZÁÉÍÓÚÑ])', r'.<br><br>\1', formatted_content)
+
+        # 3. Formatea listas numeradas
+        formatted_content = re.sub(r'(\d+\.\s)', r'<br>\1', formatted_content)
+
+        # 4. Formatea viñetas (asteriscos)
+        formatted_content = re.sub(r'^\s*\*\s', r'<br>• ', formatted_content, flags=re.MULTILINE)
+
+        # 5. Formatea viñetas (guiones)
+        formatted_content = re.sub(r'^\s*-\s', r'<br>• ', formatted_content, flags=re.MULTILINE)
+
+        # 6. Limpia múltiples saltos de línea
+        formatted_content = re.sub(r'(<br>\s*){3,}', '<br><br>', formatted_content)
+
+        # 7. Elimina saltos de línea al inicio del texto
+        formatted_content = re.sub(r'^<br>', '', formatted_content)
+
+        return formatted_content
+
     def handle_response(self, response_text):
-        self.response_text.setText(response_text)
+        formatted_text = self.format_response(response_text)
+        self.response_text.setHtml(formatted_text)
         self.reset_ui()
 
     def handle_error(self, error_message):
